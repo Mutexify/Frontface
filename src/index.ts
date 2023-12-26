@@ -1,4 +1,5 @@
 import { CosmosClient } from "@azure/cosmos";
+import { ServiceBusClient, ServiceBusMessage } from "@azure/service-bus";
 import dotenv from "dotenv";
 import express, { Express, Request, Response } from "express";
 
@@ -25,6 +26,12 @@ async function prepareContainer() {
   return container;
 }
 
+const serviceBusConnectionString = process.env.SERVICEBUS_CONNECTION_STRING;
+const queueName = process.env.QUEUE_NAME;
+if (!serviceBusConnectionString || !queueName) {
+  throw new Error("Service bus credentials missing");
+}
+
 // TODO implement GUI here
 app.get("/", async (req: Request, res: Response) => {
   const container = await prepareContainer();
@@ -32,13 +39,13 @@ app.get("/", async (req: Request, res: Response) => {
   res.send(`items: ${items.resources}`);
 });
 
-app.get("/slots", async (req: Request, res: Response) => {
+app.get("/api/slots", async (req: Request, res: Response) => {
   const container = await prepareContainer();
   const items = await container.items.readAll().fetchAll();
   res.json(items.resources);
 });
 
-app.post("/slots", async (req: Request, res: Response) => {
+app.post("/api/slots", async (req: Request, res: Response) => {
   const container = await prepareContainer();
   const item = {
     owner: req.body.owner,
@@ -50,7 +57,7 @@ app.post("/slots", async (req: Request, res: Response) => {
   res.status(201).json(created.resource);
 });
 
-app.put("/slots/:id", async (req: Request, res: Response) => {
+app.put("/api/slots/:id", async (req: Request, res: Response) => {
   const container = await prepareContainer();
   const item = {
     id: req.params.id,
@@ -61,6 +68,24 @@ app.put("/slots/:id", async (req: Request, res: Response) => {
   const updated = await container.item(req.params.id).replace(item);
 
   res.json(updated.resource);
+});
+
+app.put("/test", async (req: Request, res: Response) => {
+  const sbClient = new ServiceBusClient(serviceBusConnectionString);
+
+  const sender = sbClient.createSender(queueName);
+
+  const message: ServiceBusMessage = {
+    contentType: "application/json",
+    subject: "Scientist",
+    body: req.body,
+    timeToLive: 2 * 60 * 1000, // message expires in 2 minutes
+  };
+  await sender.sendMessages(message);
+
+  // Close the sender
+  await sender.close();
+  res.json({ message: "done" });
 });
 
 app.listen(port, () => {
