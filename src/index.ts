@@ -2,12 +2,15 @@ import { CosmosClient } from "@azure/cosmos";
 import { ServiceBusClient, ServiceBusMessage } from "@azure/service-bus";
 import dotenv from "dotenv";
 import express, { Express, Request, Response } from "express";
+import path from "path";
 
 dotenv.config();
 
 const app: Express = express();
 app.use(express.json());
 const port = process.env.PORT || 3000;
+
+app.use(express.static(path.join(__dirname, "../client/build")));
 
 const cosmos_endpoint = process.env.COSMOS_ENDPOINT;
 const cosmos_key = process.env.COSMOS_KEY;
@@ -34,9 +37,7 @@ if (!serviceBusConnectionString || !queueName) {
 
 // TODO implement GUI here
 app.get("/", async (req: Request, res: Response) => {
-  const container = await prepareContainer();
-  const items = await container.items.readAll().fetchAll();
-  res.send(`items: ${items.resources}`);
+  res.sendFile(path.join(__dirname + "/../client/build/index.html"));
 });
 
 app.get("/api/slots", async (req: Request, res: Response) => {
