@@ -40,6 +40,10 @@ app.get("/", async (req: Request, res: Response) => {
   res.sendFile(path.join(__dirname + "/../client/build/index.html"));
 });
 
+app.get("/list", async (req: Request, res: Response) => {
+  res.send(`{__dirname}`);
+});
+
 app.get("/api/slots", async (req: Request, res: Response) => {
   const container = await prepareContainer();
   const items = await container.items.readAll().fetchAll();
