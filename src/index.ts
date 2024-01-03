@@ -1,16 +1,15 @@
 import { CosmosClient } from "@azure/cosmos";
 import { ServiceBusClient, ServiceBusMessage } from "@azure/service-bus";
+import cors from "cors";
 import dotenv from "dotenv";
 import express, { Express, Request, Response } from "express";
-import path from "path";
 
 dotenv.config();
-
 const app: Express = express();
+app.use(cors());
 app.use(express.json());
+app.use(express.urlencoded({ extended: false }));
 const port = process.env.PORT || 3000;
-
-app.use(express.static(path.join(__dirname, "../client/build")));
 
 const cosmos_endpoint = process.env.COSMOS_ENDPOINT;
 const cosmos_key = process.env.COSMOS_KEY;
@@ -34,15 +33,6 @@ const queueName = process.env.QUEUE_NAME;
 if (!serviceBusConnectionString || !queueName) {
   throw new Error("Service bus credentials missing");
 }
-
-// TODO implement GUI here
-app.get("/", async (req: Request, res: Response) => {
-  res.sendFile(path.join(__dirname + "/../client/build/index.html"));
-});
-
-app.get("/list", async (req: Request, res: Response) => {
-  res.send(`{__dirname}`);
-});
 
 app.get("/api/slots", async (req: Request, res: Response) => {
   const container = await prepareContainer();
@@ -91,6 +81,49 @@ app.put("/test", async (req: Request, res: Response) => {
   // Close the sender
   await sender.close();
   res.json({ message: "done" });
+});
+
+let clients: any[] = [];
+
+app.get("/api/sse/clients", async (req: Request, res: Response) => {
+  res.json(clients);
+});
+
+function eventsHandler(req: Request, res: Response, next: any) {
+  const headers = {
+    "Content-Type": "text/event-stream",
+    Connection: "keep-alive",
+    "Cache-Control": "no-cache",
+  };
+  res.writeHead(200, headers);
+
+  const data = `data: ${JSON.stringify({ message: "test" })}\n\n`;
+
+  res.write(data);
+
+  const clientId = Date.now();
+
+  const newClient = {
+    id: clientId,
+    res,
+  };
+
+  clients.push(newClient);
+
+  req.on("close", () => {
+    console.log(`${clientId} Connection closed`);
+    clients = clients.filter((client) => client.id !== clientId);
+  });
+}
+
+app.get("/api/sse/events", eventsHandler);
+
+app.post("/api/sse/events", async (req: Request, res: Response) => {
+  const message: any = req.body;
+  res.json(message);
+  clients.forEach((client) => {
+    client.res.write(`data: ${JSON.stringify(message)}\n\n`);
+  });
 });
 
 app.listen(port, () => {
