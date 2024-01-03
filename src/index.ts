@@ -28,10 +28,14 @@ async function prepareContainer() {
   return container;
 }
 
-const serviceBusConnectionString = process.env.SERVICEBUS_CONNECTION_STRING;
-const queueName = process.env.QUEUE_NAME;
-if (!serviceBusConnectionString || !queueName) {
-  throw new Error("Service bus credentials missing");
+async function prepareMessageBusSender() {
+  const serviceBusConnectionString = process.env.SERVICEBUS_CONNECTION_STRING;
+  const queueName = process.env.QUEUE_NAME;
+  if (!serviceBusConnectionString || !queueName) {
+    throw new Error("Service bus credentials missing");
+  }
+  const sbClient = new ServiceBusClient(serviceBusConnectionString);
+  return sbClient.createSender(queueName);
 }
 
 app.get("/api/slots", async (req: Request, res: Response) => {
@@ -52,28 +56,32 @@ app.post("/api/slots", async (req: Request, res: Response) => {
   res.status(201).json(created.resource);
 });
 
-app.put("/api/slots/:id", async (req: Request, res: Response) => {
-  const container = await prepareContainer();
+// app.put("/api/slots/:id", async (req: Request, res: Response) => {
+//   const container = await prepareContainer();
+//   const item = {
+//     id: req.params.id,
+//     owner: req.body.owner,
+//     resourceUri: req.body.resourceUri,
+//     blocked: req.body.blocked,
+//   };
+//   const updated = await container.item(req.params.id).replace(item);
+
+//   res.json(updated.resource);
+// });
+
+app.patch("/api/slots/:id", async (req: Request, res: Response) => {
   const item = {
-    id: req.params.id,
-    owner: req.body.owner,
-    resourceUri: req.body.resourceUri,
     blocked: req.body.blocked,
   };
-  const updated = await container.item(req.params.id).replace(item);
 
-  res.json(updated.resource);
-});
+  console.log("patching", req.params.id, item);
 
-app.put("/test", async (req: Request, res: Response) => {
-  const sbClient = new ServiceBusClient(serviceBusConnectionString);
-
-  const sender = sbClient.createSender(queueName);
+  const sender = await prepareMessageBusSender();
 
   const message: ServiceBusMessage = {
     contentType: "application/json",
     subject: "Scientist",
-    body: req.body,
+    body: item,
     timeToLive: 2 * 60 * 1000, // message expires in 2 minutes
   };
   await sender.sendMessages(message);
@@ -97,9 +105,7 @@ function eventsHandler(req: Request, res: Response, next: any) {
   };
   res.writeHead(200, headers);
 
-  const data = `data: ${JSON.stringify({ message: "test" })}\n\n`;
-
-  res.write(data);
+  res.write("Connected\n\n");
 
   const clientId = Date.now();
 
