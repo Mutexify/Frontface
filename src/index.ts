@@ -1,5 +1,9 @@
 import { CosmosClient } from "@azure/cosmos";
-import { ServiceBusClient, ServiceBusMessage } from "@azure/service-bus";
+import {
+  ProcessErrorArgs,
+  ServiceBusClient,
+  ServiceBusMessage,
+} from "@azure/service-bus";
 import cors from "cors";
 import dotenv from "dotenv";
 import express, { Express, Request, Response } from "express";
@@ -10,6 +14,8 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 const port = process.env.PORT || 3000;
+
+//////////////////////////// slots management /////////////////////////////
 
 async function prepareContainer() {
   const cosmos_endpoint = process.env.COSMOS_ENDPOINT;
@@ -30,16 +36,6 @@ async function prepareContainer() {
   return container;
 }
 
-async function prepareMessageBusSender() {
-  const serviceBusConnectionString = process.env.SERVICEBUS_CONNECTION_STRING;
-  const queueName = process.env.QUEUE_NAME;
-  if (!serviceBusConnectionString || !queueName) {
-    throw new Error("Service bus credentials missing");
-  }
-  const sbClient = new ServiceBusClient(serviceBusConnectionString);
-  return sbClient.createSender(queueName);
-}
-
 app.get("/api/slots", async (req: Request, res: Response) => {
   const container = await prepareContainer();
   const items = await container.items.readAll().fetchAll();
@@ -58,6 +54,8 @@ app.post("/api/slots", async (req: Request, res: Response) => {
   res.status(201).json(created.resource);
 });
 
+///////////////////////////// lock management //////////////////////////////
+
 // app.put("/api/slots/:id", async (req: Request, res: Response) => {
 //   const container = await prepareContainer();
 //   const item = {
@@ -70,6 +68,16 @@ app.post("/api/slots", async (req: Request, res: Response) => {
 
 //   res.json(updated.resource);
 // });
+
+async function prepareMessageBusSender() {
+  const serviceBusConnectionString = process.env.SERVICEBUS_CONNECTION_STRING;
+  const queueName = "lockrequests";
+  if (!serviceBusConnectionString || !queueName) {
+    throw new Error("Service bus credentials missing");
+  }
+  const sbClient = new ServiceBusClient(serviceBusConnectionString);
+  return sbClient.createSender(queueName);
+}
 
 app.patch("/api/slots/:id", async (req: Request, res: Response) => {
   const item = {
@@ -92,6 +100,8 @@ app.patch("/api/slots/:id", async (req: Request, res: Response) => {
   await sender.close();
   res.json({ message: "Received patch" });
 });
+
+/////////////////////////////// SSE ///////////////////////////////////////
 
 let clients: any[] = [];
 
@@ -124,13 +134,45 @@ function eventsHandler(req: Request, res: Response, next: any) {
 
 app.get("/api/sse/events", eventsHandler);
 
-app.post("/api/sse/events", async (req: Request, res: Response) => {
-  const message: any = req.body;
-  res.json(message);
+// app.post("/api/sse/events", async (req: Request, res: Response) => {
+//   const message: any = req.body;
+//   res.json(message);
+//   clients.forEach((client) => {
+//     client.res.write(`data: ${JSON.stringify(message)}\n\n`);
+//   });
+// });
+
+//////////////////////////// handling lock results /////////////////////////////
+
+function prepareMessageBusReceiver() {
+  const serviceBusConnectionString = process.env.SERVICEBUS_CONNECTION_STRING;
+  const topicName = "lockresults";
+  const subscriptionName = "LockResults1";
+  if (!serviceBusConnectionString) {
+    throw new Error("Service bus credentials missing");
+  }
+  const sbClient = new ServiceBusClient(serviceBusConnectionString);
+  return sbClient.createReceiver(topicName, subscriptionName);
+}
+
+async function lockResultMessageHandler(message: ServiceBusMessage) {
+  console.log("Received result message: ", message.body);
   clients.forEach((client) => {
-    client.res.write(`data: ${JSON.stringify(message)}\n\n`);
+    client.res.write(`data: ${JSON.stringify(message.body)}\n\n`);
   });
+}
+
+const lockResultErrorHandler = async (args: ProcessErrorArgs) => {
+  console.log(args);
+};
+
+const receiver = prepareMessageBusReceiver();
+receiver.subscribe({
+  processMessage: lockResultMessageHandler,
+  processError: lockResultErrorHandler,
 });
+
+///////////////////////////////////////////////////////////////////////////
 
 app.listen(port, () => {
   console.log(`[server]: Server is running at http://localhost:${port}`);
