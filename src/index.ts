@@ -11,14 +11,16 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 const port = process.env.PORT || 3000;
 
-const cosmos_endpoint = process.env.COSMOS_ENDPOINT;
-const cosmos_key = process.env.COSMOS_KEY;
-if (!cosmos_endpoint || !cosmos_key) {
-  throw new Error("Cosmos DB credentials missing");
-}
-const client = new CosmosClient({ endpoint: cosmos_endpoint, key: cosmos_key });
-
 async function prepareContainer() {
+  const cosmos_endpoint = process.env.COSMOS_ENDPOINT;
+  const cosmos_key = process.env.COSMOS_KEY;
+  if (!cosmos_endpoint || !cosmos_key) {
+    throw new Error("Cosmos DB credentials missing");
+  }
+  const client = new CosmosClient({
+    endpoint: cosmos_endpoint,
+    key: cosmos_key,
+  });
   const { database } = await client.databases.createIfNotExists({
     id: "mutexio",
   });
@@ -88,7 +90,7 @@ app.patch("/api/slots/:id", async (req: Request, res: Response) => {
 
   // Close the sender
   await sender.close();
-  res.json({ message: "done" });
+  res.json({ message: "Received patch" });
 });
 
 let clients: any[] = [];
@@ -104,8 +106,6 @@ function eventsHandler(req: Request, res: Response, next: any) {
     "Cache-Control": "no-cache",
   };
   res.writeHead(200, headers);
-
-  res.write("Connected\n\n");
 
   const clientId = Date.now();
 
