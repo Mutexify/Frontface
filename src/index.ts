@@ -1,13 +1,12 @@
-import { CosmosClient } from "@azure/cosmos";
-import {
-  ProcessErrorArgs,
-  ServiceBusClient,
-  ServiceBusMessage,
-} from "@azure/service-bus";
+import { ProcessErrorArgs, ServiceBusMessage } from "@azure/service-bus";
 import cors from "cors";
 import dotenv from "dotenv";
 import express, { Express, Request, Response } from "express";
-import { slotDataFromDBResponse } from "./helpers";
+import {
+  prepareCosmosContainer,
+  prepareServiceBusClients,
+  slotDataFromDBResponse,
+} from "./helpers";
 import { Client, SlotData } from "./types";
 
 dotenv.config();
@@ -18,35 +17,15 @@ const port = process.env.PORT;
 
 //////////////////////////// slots management /////////////////////////////
 
-// TODO move to helpers.ts
-async function prepareContainer() {
-  const cosmos_endpoint = process.env.COSMOS_ENDPOINT;
-  const cosmos_key = process.env.COSMOS_KEY;
-  if (!cosmos_endpoint || !cosmos_key) {
-    throw new Error("Cosmos DB credentials missing");
-  }
-  const client = new CosmosClient({
-    endpoint: cosmos_endpoint,
-    key: cosmos_key,
-  });
-  const { database } = await client.databases.createIfNotExists({
-    id: "mutexio", // TODO change to env variable
-  });
-  const { container } = await database.containers.createIfNotExists({
-    id: "slots", // TODO change to env variable
-  });
-  return container;
-}
-
 app.get("/api/slots", async (req: Request, res: Response) => {
-  const container = await prepareContainer();
+  const container = await prepareCosmosContainer();
   const items = await container.items.readAll().fetchAll();
   const slots = items.resources.map((item) => slotDataFromDBResponse(item));
   res.json(slots);
 });
 
 app.post("/api/slots", async (req: Request, res: Response) => {
-  const container = await prepareContainer();
+  const container = await prepareCosmosContainer();
   const item = {
     // owner: req.body.owner,
     // resourceUri: req.body.resourceUri,
@@ -59,16 +38,6 @@ app.post("/api/slots", async (req: Request, res: Response) => {
 
 ///////////////////////////// lock management //////////////////////////////
 
-async function prepareMessageBusSender() {
-  const serviceBusConnectionString = process.env.SERVICEBUS_CONNECTION_STRING;
-  const queueName = process.env.SERVICEBUS_LOCK_REQUEST_QUEUE_NAME;
-  if (!serviceBusConnectionString || !queueName) {
-    throw new Error("Service bus credentials missing");
-  }
-  const sbClient = new ServiceBusClient(serviceBusConnectionString);
-  return sbClient.createSender(queueName);
-}
-
 app.patch("/api/slots/:id", async (req: Request, res: Response) => {
   const slotData: SlotData = {
     id: req.params.id,
@@ -77,15 +46,15 @@ app.patch("/api/slots/:id", async (req: Request, res: Response) => {
 
   console.log(`PATCH /slot/${slotData.id}`, slotData);
 
-  const sender = await prepareMessageBusSender();
+  const { sbSender } = prepareServiceBusClients();
 
   const message: ServiceBusMessage = {
     contentType: "application/json",
     body: slotData,
   };
-  await sender.sendMessages(message);
+  await sbSender.sendMessages(message);
 
-  await sender.close();
+  await sbSender.close();
   res.json(["Successfully processed patch request"]);
 });
 
@@ -98,7 +67,7 @@ app.get("/api/sse/clients", async (req: Request, res: Response) => {
   res.json(clients.length);
 });
 
-function eventsHandler(req: Request, res: Response, next: any) {
+app.get("/api/sse/events", async (req: Request, res: Response) => {
   const headers = {
     "Content-Type": "text/event-stream",
     Connection: "keep-alive",
@@ -119,39 +88,22 @@ function eventsHandler(req: Request, res: Response, next: any) {
     console.log(`${clientId} Connection closed`);
     clients = clients.filter((client) => client.id !== clientId);
   });
-}
-
-app.get("/api/sse/events", eventsHandler);
+});
 
 //////////////////////////// handling lock results /////////////////////////////
 
-function prepareMessageBusReceiver() {
-  const serviceBusConnectionString = process.env.SERVICEBUS_CONNECTION_STRING;
-  const topicName = process.env.SERVICEBUS_LOCK_RESULT_TOPIC_NAME;
-  const subscriptionName = process.env.SERVICEBUS_LOCK_RESULT_SUBSCRIPTION_NAME;
-  if (!serviceBusConnectionString || !topicName || !subscriptionName) {
-    throw new Error("Service bus credentials missing");
-  }
-  const sbClient = new ServiceBusClient(serviceBusConnectionString);
-  return sbClient.createReceiver(topicName, subscriptionName);
-}
-
-async function lockResultMessageHandler(message: ServiceBusMessage) {
-  const lockResultData = JSON.stringify(message.body);
-  console.log("Received result message: ", lockResultData);
-  clients.forEach((client) => {
-    client.res.write(`data: ${lockResultData}\n\n`);
-  });
-}
-
-const lockResultErrorHandler = async (args: ProcessErrorArgs) => {
-  console.log(args);
-};
-
-const receiver = prepareMessageBusReceiver();
-receiver.subscribe({
-  processMessage: lockResultMessageHandler,
-  processError: lockResultErrorHandler,
+const { sbReceiver } = prepareServiceBusClients();
+sbReceiver.subscribe({
+  processMessage: async (message: ServiceBusMessage) => {
+    const lockResultData = JSON.stringify(message.body);
+    console.log("Received result message: ", lockResultData);
+    clients.forEach((client) => {
+      client.res.write(`data: ${lockResultData}\n\n`);
+    });
+  },
+  processError: async (args: ProcessErrorArgs) => {
+    console.log(args);
+  },
 });
 
 ///////////////////////////////////////////////////////////////////////////
