@@ -5,7 +5,7 @@ export interface SlotData {
   blocked: boolean;
 }
 
-export type LockResult = "success" | "failure";
+export type LockResult = "success" | "failure" | "error" | "not_found";
 
 export type LockResultData = {
   slotData: SlotData;
