@@ -1,15 +1,14 @@
-import { Request, Response, Router } from "express";
+import { Request, Response } from "express";
 import { Client } from "../types";
-const sseRouter = Router();
 
 let sseClients: Client[] = [];
 
-sseRouter.get("/clients", async (req: Request, res: Response) => {
+export async function getSseClientsHandler(req: Request, res: Response) {
   console.log("sseClients", sseClients);
   res.json(sseClients.length);
-});
+}
 
-sseRouter.get("/events", async (req: Request, res: Response) => {
+export async function subscribeToEventsHandler(req: Request, res: Response) {
   const headers = {
     "Content-Type": "text/event-stream",
     Connection: "keep-alive",
@@ -30,6 +29,6 @@ sseRouter.get("/events", async (req: Request, res: Response) => {
     console.log(`${clientId} Connection closed`);
     sseClients = sseClients.filter((client) => client.id !== clientId);
   });
-});
+}
 
-export { sseClients, sseRouter };
+export { sseClients };

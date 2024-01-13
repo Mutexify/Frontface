@@ -2,9 +2,11 @@ import cors from "cors";
 import dotenv from "dotenv";
 import express, { Express } from "express";
 
-import { locksRouter, subscribeToLockResults } from "./components/locks";
-import slotsRouter from "./components/slots";
-import { sseClients, sseRouter } from "./components/sse";
+import { subscribeToLockResults } from "./controllers/locks.controller";
+import { sseClients } from "./controllers/sse.controller";
+import { locksRouter } from "./routers/locks.router";
+import slotsRouter from "./routers/slots.router";
+import { sseRouter } from "./routers/sse.router";
 
 dotenv.config();
 const app: Express = express();

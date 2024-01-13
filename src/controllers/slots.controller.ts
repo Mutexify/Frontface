@@ -1,15 +1,14 @@
-import { Request, Response, Router } from "express";
-import { prepareCosmosContainer, slotDataFromDBResponse } from "../helpers";
-const slotsRouter = Router();
+import { Request, Response } from "express";
+import { prepareCosmosContainer, slotDataFromDBResponse } from "../utils";
 
-slotsRouter.get("/", async (req: Request, res: Response) => {
+export async function getAllSlotsHandler(req: Request, res: Response) {
   const container = await prepareCosmosContainer();
   const items = await container.items.readAll().fetchAll();
   const slots = items.resources.map((item) => slotDataFromDBResponse(item));
   res.json(slots);
-});
+}
 
-slotsRouter.post("/", async (req: Request, res: Response) => {
+export async function createSlotHandler(req: Request, res: Response) {
   const container = await prepareCosmosContainer();
   const item = {
     // owner: req.body.owner,
@@ -19,6 +18,4 @@ slotsRouter.post("/", async (req: Request, res: Response) => {
   const created = await container.items.create(item);
 
   res.status(201).json(created.resource);
-});
-
-export default slotsRouter;
+}

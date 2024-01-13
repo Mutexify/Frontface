@@ -35,10 +35,10 @@ export async function prepareCosmosContainer(): Promise<Container> {
     key: cosmos_key,
   });
   const { database } = await client.databases.createIfNotExists({
-    id: process.env.COSMOS_DB_NAME, // TODO change to env variable
+    id: process.env.COSMOS_DB_NAME,
   });
   const dbContainer = await database.containers.createIfNotExists({
-    id: process.env.COSMOS_CONTAINER_NAME, // TODO change to env variable
+    id: process.env.COSMOS_CONTAINER_NAME,
   });
   return dbContainer.container;
 }
