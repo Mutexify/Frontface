@@ -13,7 +13,13 @@ export const logoutHandler = async (
   next: NextFunction
 ) => {
   try {
-    res.cookie("token", "", { maxAge: -1 });
+    res.cookie("token", "", {
+      maxAge: -1,
+      sameSite: process.env.NODE_ENV === "production" ? true : undefined,
+      secure: process.env.NODE_ENV === "production" ? true : false,
+      httpOnly: true,
+      path: "/",
+    });
     res.status(200).json({ status: "success" });
   } catch (err: any) {
     next(err);
@@ -67,7 +73,7 @@ export const googleOauthHandler = async (req: Request, res: Response) => {
 
     res.cookie("token", token, {
       expires: new Date(Date.now() + TOKEN_EXPIRES_IN * 60 * 1000),
-      sameSite: "none",
+      sameSite: process.env.NODE_ENV === "production" ? true : undefined,
       secure: process.env.NODE_ENV === "production" ? true : false,
       httpOnly: true,
       path: "/",
