@@ -65,14 +65,10 @@ export const googleOauthHandler = async (req: Request, res: Response) => {
       expiresIn: `${TOKEN_EXPIRES_IN}m`,
     });
 
-    console.log("User logged in successfully", user);
-    console.log("Token generated successfully", token);
-
     res.cookie("token", token, {
       expires: new Date(Date.now() + TOKEN_EXPIRES_IN * 60 * 1000),
+      sameSite: "none",
     });
-
-    console.log("saved to cookie");
 
     res.redirect(`${FRONTEND_ORIGIN}${pathUrl}`);
   } catch (err: any) {
