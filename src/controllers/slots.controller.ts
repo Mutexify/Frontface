@@ -5,14 +5,15 @@ import { prepareCosmosContainer, slotDataFromDBResponse } from "../utils";
 export async function getAllSlotsHandler(req: Request, res: Response) {
   const container = await prepareCosmosContainer("slots");
   const items = await container.items.readAll<SlotData>().fetchAll();
-  const slots = items.resources.map((item) => slotDataFromDBResponse(item));
+  let slots = items.resources.map((item) => slotDataFromDBResponse(item));
+  slots = slots.filter((slot) => slot.owners.includes(res.locals.user.email));
   res.json(slots);
 }
 
 export async function createSlotHandler(req: Request, res: Response) {
   const container = await prepareCosmosContainer("slots");
   const item = {
-    // owner: req.body.owner,
+    owners: req.body.owners,
     // resourceUri: req.body.resourceUri,
     blocked: false,
   };

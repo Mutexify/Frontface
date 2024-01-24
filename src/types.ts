@@ -1,14 +1,17 @@
 import { Response } from "express";
 
+type Email = string;
+
 export interface SlotData {
   id: string;
   blocked: boolean;
+  owners: Email[];
 }
 
 export interface User {
   id: string;
   name: string;
-  email: string;
+  email: Email;
   photo: string;
 }
 

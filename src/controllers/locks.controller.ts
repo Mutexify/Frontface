@@ -1,6 +1,6 @@
 import { ProcessErrorArgs, ServiceBusMessage } from "@azure/service-bus";
 import { Request, Response } from "express";
-import { Client, SlotData } from "../types";
+import { Client } from "../types";
 import { prepareServiceBusClients } from "../utils";
 
 export function subscribeToLockResults(clients: Client[]) {
@@ -20,21 +20,19 @@ export function subscribeToLockResults(clients: Client[]) {
 }
 
 export async function handleLockRequest(req: Request, res: Response) {
-  const slotData: SlotData = {
+  const slotPatchData = {
     id: req.params.id,
     blocked: req.body.blocked,
   };
-
-  console.log(`PATCH /slot/${slotData.id}`, slotData);
 
   const { sbSender } = prepareServiceBusClients();
 
   const message: ServiceBusMessage = {
     contentType: "application/json",
-    body: slotData,
+    body: slotPatchData,
   };
   await sbSender.sendMessages(message);
 
   await sbSender.close();
-  res.json(["Successfully processed patch request"]);
+  res.json(`Successfully processed patch request for slot ${req.params.id}`);
 }

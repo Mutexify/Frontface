@@ -8,6 +8,7 @@ import { SlotData, User } from "./types";
 
 export function slotDataFromDBResponse(response: SlotData): SlotData {
   return {
+    owners: response.owners,
     id: response.id,
     blocked: response.blocked,
   };
