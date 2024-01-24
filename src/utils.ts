@@ -1,29 +1,34 @@
-import { Container, CosmosClient, ItemDefinition } from "@azure/cosmos";
+import { Container, CosmosClient } from "@azure/cosmos";
 import {
   ServiceBusClient,
   ServiceBusReceiver,
   ServiceBusSender,
 } from "@azure/service-bus";
-import { SlotData } from "./types";
+import { SlotData, User } from "./types";
 
-export function slotDataFromDBResponse(response: ItemDefinition): SlotData {
-  if (!response.id) {
-    throw new Error("DB response missing slot id");
-  }
-
-  if (response.blocked === undefined || response.blocked === null) {
-    throw new Error("DB response missing blocked flag");
-  }
-
+export function slotDataFromDBResponse(response: SlotData): SlotData {
   return {
+    owners: response.owners,
     id: response.id,
     blocked: response.blocked,
   };
 }
 
-const container: Container | undefined = undefined;
-export async function prepareCosmosContainer(): Promise<Container> {
-  if (container) return container;
+export function userFromDBResponse(response: User): User {
+  return {
+    id: response.id,
+    name: response.name,
+    email: response.email,
+    photo: response.photo,
+  };
+}
+
+const container: Record<string, Container> = {};
+export async function prepareCosmosContainer(
+  containerName: string
+): Promise<Container> {
+  if (containerName in container) return container[containerName];
+  console.log("Preparing cosmos container for name: ", containerName);
 
   const cosmos_endpoint = process.env.COSMOS_ENDPOINT;
   const cosmos_key = process.env.COSMOS_KEY;
@@ -35,12 +40,14 @@ export async function prepareCosmosContainer(): Promise<Container> {
     key: cosmos_key,
   });
   const { database } = await client.databases.createIfNotExists({
-    id: process.env.COSMOS_DB_NAME, // TODO change to env variable
+    id: process.env.COSMOS_DB_NAME,
   });
   const dbContainer = await database.containers.createIfNotExists({
-    id: process.env.COSMOS_CONTAINER_NAME, // TODO change to env variable
+    id: containerName,
   });
-  return dbContainer.container;
+
+  container[containerName] = dbContainer.container;
+  return container[containerName];
 }
 
 const sbSender: ServiceBusSender | undefined = undefined;
