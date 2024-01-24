@@ -15,7 +15,7 @@ export const logoutHandler = async (
   try {
     res.cookie("token", "", {
       maxAge: -1,
-      sameSite: process.env.NODE_ENV === "production" ? true : undefined,
+      sameSite: process.env.NODE_ENV === "production" ? "none" : undefined,
       secure: process.env.NODE_ENV === "production" ? true : false,
       httpOnly: true,
       path: "/",
@@ -73,7 +73,7 @@ export const googleOauthHandler = async (req: Request, res: Response) => {
 
     res.cookie("token", token, {
       expires: new Date(Date.now() + TOKEN_EXPIRES_IN * 60 * 1000),
-      sameSite: process.env.NODE_ENV === "production" ? true : undefined,
+      sameSite: process.env.NODE_ENV === "production" ? "none" : undefined,
       secure: process.env.NODE_ENV === "production" ? true : false,
       httpOnly: true,
       path: "/",
