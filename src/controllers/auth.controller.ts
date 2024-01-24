@@ -68,6 +68,9 @@ export const googleOauthHandler = async (req: Request, res: Response) => {
     res.cookie("token", token, {
       expires: new Date(Date.now() + TOKEN_EXPIRES_IN * 60 * 1000),
       sameSite: "none",
+      secure: false, //TODO change to true in production
+      httpOnly: true,
+      path: "/",
     });
 
     res.redirect(`${FRONTEND_ORIGIN}${pathUrl}`);
