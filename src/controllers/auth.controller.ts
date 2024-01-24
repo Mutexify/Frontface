@@ -68,7 +68,7 @@ export const googleOauthHandler = async (req: Request, res: Response) => {
     res.cookie("token", token, {
       expires: new Date(Date.now() + TOKEN_EXPIRES_IN * 60 * 1000),
       sameSite: "none",
-      secure: false, //TODO change to true in production
+      secure: process.env.NODE_ENV === "production" ? true : false,
       httpOnly: true,
       path: "/",
     });
