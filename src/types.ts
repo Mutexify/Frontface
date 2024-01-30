@@ -4,7 +4,7 @@ type Email = string;
 
 export interface SlotData {
   id: string;
-  blocked: boolean;
+  blocked: string | false;
   owners: Email[];
 }
 
