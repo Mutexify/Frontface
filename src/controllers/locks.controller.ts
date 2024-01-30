@@ -22,7 +22,7 @@ export function subscribeToLockResults(clients: Client[]) {
 export async function handleLockRequest(req: Request, res: Response) {
   const slotPatchData = {
     id: req.params.id,
-    blocked: req.body.blocked,
+    blocked: req.body.blocked ? res.locals.user.email : false,
   };
 
   const { sbSender } = prepareServiceBusClients();
